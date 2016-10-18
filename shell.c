@@ -5,26 +5,32 @@
  * 
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <limits.h>
+#include <string.h>
+
 
 typedef struct Environment {
     char *shell;
     char *PWD;
 } Environment;
 
-void *countWords(void *fInfoVoid);
-void setupEnvironment(void *fInfoVoid);
+void setupEnvironment(Environment *env);
 
 
 int main(int argc, char *argv[]) {
     
     int batchMode = 0;
     FILE *batchFile;
+    Environment env;
 
     if (argc == 1) {
         batchMode = 0;
@@ -41,25 +47,21 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    setupEnvironment();
+    setupEnvironment(&env);
 
     char *line;
     size_t buffSize = 32;
-    size_t lineSize;
-    line = (char *)malloc(buffSize * sizeof(char));    
 
-    int halt = 0;
-    while (!halt) {
-        printf("Enter your command: ");
-        lineSize = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
-        printf("%zu characters were read.\n", lineSize);
-        printf("Command: %s", line);
+}
+
+void setupEnvironment(Environment *env){
+    char envbuf[PATH_MAX];
+    if (readlink("/proc/self/exe", envbuf, sizeof(envbuf) - 1) == -1)
+        fprintf(stderr, "Cannot get directory of shell executable\n");
+    else {
+        env->PWD = env->shell = (char *) malloc(1 + strlen("shell=")+ strlen(envbuf));
+        strcpy(env->PWD, "shell=");
+        strcat(env->PWD, envbuf);
+        strcpy(env->shell, env->PWD);
     }
-    
-    free(line);
-    if (batchMode) fclose(batchFile);
-    exit(0);
-  
-  
-    
 }
