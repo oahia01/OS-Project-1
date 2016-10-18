@@ -13,14 +13,16 @@
 #include <pthread.h>
 #include <ctype.h>
 
+const char *delims = " \t\n";
+
 typedef struct Environment {
     char *shell;
     char *PWD;
 } Environment;
 
 void setupEnvironment(void *fInfoVoid);
-void cleanupInput(char *line, size_t *lineLen);
-void runCommand(char *cmd, Environment env);
+void cleanupString(char *line, size_t *lineLen);
+void runCommand(char *cmd, size_t cmdLen);
 
 int main(int argc, char *argv[]) {
     
@@ -43,7 +45,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    Environment env = setupEnvironment();
+    // Environment env = setupEnvironment();
 
     char *line;
     size_t buffSize = 32;
@@ -54,13 +56,13 @@ int main(int argc, char *argv[]) {
 
         if (!batchMode) printf(">> ");
         lineLen = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
-        cleanupInput(line, &lineLen);
+        cleanupString(line, &lineLen);
         
         if (lineLen == 0) continue;
         if (batchMode && feof(batchFile)) break;
         if (!strcmp(line, "quit")) break;
         
-        runCommand(line, lineLen, env);
+        runCommand(line, lineLen);
 
         // printf("%zu characters were read.\n", lineLen);
         // printf("Command: %s\n", line);
@@ -95,21 +97,21 @@ void cleanupString(char *line, size_t *lineLen) {
 }
 
 
-void runCommand(char *cmd, size_t cmdLen, Environment env) {
+void runCommand(char *cmd, size_t cmdLen) {
 
-    char *cmdName;
-    int cmdNameLen = 0;
-    char *args;
-    int argsLen = 0;
+    char **argv;
+    argv = malloc(cmdLen/2 * sizeof(char*));    
 
-    while (cmdNameLen < lineLen && cmd[cmdNameLen] != ' ') {
-        cmdNameLen++;
-    }
-    cmd[cmdNameLen] = 0;   /* null-terminate */
-    args = &cmd[cmdNameLen+1];
-    argsLen = cmdLen - cmdNameLen - 1;
+    argv[0] = strtok(cmd, delims);
+    int i = 1;
+    do {
+        argv[i] = strtok(NULL, delims);
+    } while (argv[i++] != NULL);
+    int argc = i-1;
 
-    printf("%s - %s", cmdName, args);
+    for (int i = 0; i < argc; i++)
+        fprintf(stderr, "%s\n", argv[i]);
+
 
     // if (!strcmp(cmdName, "echo")) {
         // echo(cmd);
