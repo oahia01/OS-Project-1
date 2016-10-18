@@ -27,7 +27,7 @@ typedef struct Environment {
 } Environment;
 
 void setupEnvironment(Environment *env);
-// void cleanupString(char *line, size_t *lineLen);
+void cleanupString(char *line, size_t *lineLen);
 void runCommand(char **argv, int argc);
 
 
@@ -52,19 +52,23 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    setupEnvironment(&env);
+    // setupEnvironment(&env);
 
     char *line;
-    size_t buffSize = 32;
+    size_t buffSize = 100;
     size_t lineLen;
     line = (char *)malloc(buffSize * sizeof(char));    
 
     int halt = 0;
     while (!halt) {
 
+        if (batchMode && feof(batchFile)) break;
+
         if (!batchMode) printf(">> ");
         lineLen = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
-        
+        cleanupString(line, &lineLen);
+        // fprintf(stderr, "%s\n\n", line);
+
         /* Unwrap sequence of commands delimited by ; */
         char **cmds;
         cmds = malloc(lineLen/2 * sizeof(char*));    
@@ -77,7 +81,7 @@ int main(int argc, char *argv[]) {
 
         for (int i = 0; i < numCmds && !halt; i++) {
             
-            /* Handle empty cases. */
+            /* Handle empty cases */
             if (!strcmp(cmds[i], "")) continue;
 
             /* Unwrap each argument delimited by whitespaces */
@@ -90,9 +94,9 @@ int main(int argc, char *argv[]) {
             } while (argv[j++] != NULL);
             int argc = j-1;
 
-            /* Handle quit and EOF. */
-            if (!strcmp(argv[0], "quit") || (batchMode && feof(batchFile))) {
-                halt = 1;
+            /* Handle quit */
+            if (!strcmp(argv[0], "quit")) {
+                halt = 1; 
                 free(argv);
                 break;
             }
@@ -141,22 +145,23 @@ void runCommand(char **argv, int argc) {
 
 
 
-// void cleanupString(char *line, size_t *lineLen) {
+void cleanupString(char *line, size_t *lineLen) {
 
-//     /* Clean trailing white spaces: */
-//     while (*lineLen > 0 && isspace(line[*lineLen-1]))
-//         (*lineLen)--;
+    /* Clean trailing white spaces: */
+    while (*lineLen > 0 && isspace(line[*lineLen-1]))
+        (*lineLen)--;
     
-//     /* Clean leading white spaces: */
-//     int leadingWhites = 0;
-//     while (leadingWhites < *lineLen && isspace(line[leadingWhites]))
-//         leadingWhites++;
-//     *lineLen -= leadingWhites;
+    /* Clean leading white spaces: */
+    int leadingWhites = 0;
+    while (leadingWhites < *lineLen && isspace(line[leadingWhites]))
+        leadingWhites++;
+    *lineLen -= leadingWhites;
 
-//     for (int i = 0; i < *lineLen; i++) {
-//         line[i] = line[i+leadingWhites];
-//     }
+    for (int i = 0; i < *lineLen; i++) {
+        line[i] = line[i+leadingWhites];
+    }
 
-//     line[*lineLen] = 0;  /* null-terminate */
+    line[*lineLen] = 0;  /* null-terminate */
 
-// }
+}
+
