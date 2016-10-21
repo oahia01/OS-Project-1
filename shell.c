@@ -5,6 +5,7 @@
  * 
  */
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -16,6 +17,8 @@
 #include <string.h>
 
 #define PATH_MAX 4096 
+
+const char *whites = " \t\n";
 
 const char *whites = " \t\n";
 
@@ -132,10 +135,9 @@ void setupEnvironment(Environment *env) {
     }
 }
 
-
 void runCommand(char **argv, int argc) {
-    int i;
-    for (i = 0; i < argc; i++)
+
+    for (int i = 0; i < argc; i++)
         fprintf(stderr, "%s - ", argv[i]);
     fprintf(stderr, "\n");
 
@@ -153,8 +155,7 @@ void cleanupString(char *line, size_t *lineLen) {
         leadingWhites++;
     *lineLen -= leadingWhites;
 
-    int i;
-    for (i= 0; i < *lineLen; i++) {
+    for (int i = 0; i < *lineLen; i++) {
         line[i] = line[i+leadingWhites];
     }
 
