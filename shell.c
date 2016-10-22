@@ -15,25 +15,28 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <signal.h>
 
 #define PATH_MAX 4096 
 
 const char *whites = " \t\n";
-
-const char *whites = " \t\n";
+static volatile int halt = 0;
 
 typedef struct Environment {
     char *shell;
     char *PWD;
 } Environment;
 
+void sigintHandler(int sig) { halt = 1; }
+
 void setupEnvironment(Environment *env);
-void cleanupString(char *line, size_t *lineLen);
+void cleanupString(char *line);
 void runCommand(char **argv, int argc);
 
-
 int main(int argc, char *argv[]) {
-    
+
+    signal(SIGHUP, sigintHandler);
+
     int batchMode = 0;
     FILE *batchFile;
     Environment env;
@@ -57,22 +60,23 @@ int main(int argc, char *argv[]) {
 
     char *line;
     size_t buffSize = 100;
-    size_t lineLen;
+    size_t lineLimit;
     line = (char *)malloc(buffSize * sizeof(char));    
 
-    int halt = 0;
     while (!halt) {
 
         if (batchMode && feof(batchFile)) break;
 
         if (!batchMode) printf(">> ");
-        lineLen = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
-        cleanupString(line, &lineLen);
+        lineLimit = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
+
+        cleanupString(line);
+        if (!strcmp(line, "")) continue;
         // fprintf(stderr, "%s\n\n", line);
 
         /* Unwrap sequence of commands delimited by ; */
         char **cmds;
-        cmds = malloc(lineLen/2 * sizeof(char*));    
+        cmds = malloc(lineLimit * sizeof(char*));    
         cmds[0] = strtok(line, ";");
         int i = 1;
         do {
@@ -83,11 +87,12 @@ int main(int argc, char *argv[]) {
         for (i = 0; i < numCmds && !halt; i++) {
             
             /* Handle empty cases */
+            cleanupString(cmds[i]);
             if (!strcmp(cmds[i], "")) continue;
 
             /* Unwrap each argument delimited by whitespaces */
             char **argv;
-            argv = malloc(lineLen/2 * sizeof(char*));    
+            argv = malloc(lineLimit * sizeof(char*));    
             argv[0] = strtok(cmds[i], whites);
             int j = 1;
             do {
@@ -97,7 +102,7 @@ int main(int argc, char *argv[]) {
 
             /* Handle quit */
             if (!strcmp(argv[0], "quit")) {
-                halt = 1; 
+                halt = 1;
                 free(argv);
                 break;
             }
@@ -106,6 +111,7 @@ int main(int argc, char *argv[]) {
 
             free(argv);
         }
+
         free(cmds);
     }
     
@@ -137,28 +143,33 @@ void setupEnvironment(Environment *env) {
 
 void runCommand(char **argv, int argc) {
 
-    for (int i = 0; i < argc; i++)
+    int i;
+    for (i = 0; i < argc; i++)
         fprintf(stderr, "%s - ", argv[i]);
     fprintf(stderr, "\n");
 
 }
 
-void cleanupString(char *line, size_t *lineLen) {
+void cleanupString(char *line) {
 
-    /* Clean trailing white spaces: */
-    while (*lineLen > 0 && isspace(line[*lineLen-1]))
-        (*lineLen)--;
+    int lineLen = 0;   /* get length of line */
+    while (line[lineLen]) lineLen++;
+
+    /* Clean trailing white spaces and ;'s: */
+    while (lineLen > 0 && (isspace(line[lineLen-1]) || line[lineLen-1] == ';'))
+        lineLen--;
     
-    /* Clean leading white spaces: */
+    /* Clean leading white spaces and ;'s: */
     int leadingWhites = 0;
-    while (leadingWhites < *lineLen && isspace(line[leadingWhites]))
+    while (leadingWhites < lineLen && (isspace(line[leadingWhites]) || line[leadingWhites] == ';'))
         leadingWhites++;
-    *lineLen -= leadingWhites;
+    lineLen -= leadingWhites;
 
-    for (int i = 0; i < *lineLen; i++) {
+    int i;
+    for (i = 0; i < lineLen; i++) {
         line[i] = line[i+leadingWhites];
     }
 
-    line[*lineLen] = 0;  /* null-terminate */
+    line[lineLen] = 0;  /* null-terminate */
 
 }
