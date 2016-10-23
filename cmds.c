@@ -30,8 +30,8 @@ void execute(char** argv, Environment *env);
 
 extern void runCommand(char **argv, int argc, Environment *env, char** main_envp, sem_t *sem_env_ptr) {
     
-    int backgroundRun = !strcmp(argv[argc-1], "&");
-    if (backgroundRun) argc--;
+    // int backgroundRun = !strcmp(argv[argc-1], "&");
+    // if (backgroundRun) argc--;
     
     //TODO: handle IO redirection
     
@@ -42,19 +42,19 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
         fprintf(stderr, "Error creating child process to execute command, errno = %d.\n", errno);
     } else {
         /* parent process: */
-        if (backgroundRun) {
-            if (env->num_child_processes == MAX_CHILD_PROCESSES) {
-                fprintf(stderr, "Error: maximum child process limit exceeded. Exiting.\n");
-                exit(1);
-            }
+        // if (backgroundRun) {
+        //     if (env->num_child_processes == MAX_CHILD_PROCESSES) {
+        //         fprintf(stderr, "Error: maximum child process limit exceeded. Exiting.\n");
+        //         exit(1);
+        //     }
 
-            sem_wait(sem_env_ptr);
-            env->child_processes[env->num_child_processes++] = child_pid;
-            sem_post(sem_env_ptr);
-        } else {
+        //     sem_wait(sem_env_ptr);
+        //     env->child_processes[env->num_child_processes++] = child_pid;
+        //     sem_post(sem_env_ptr);
+        // } else {
             pid_t w = waitpid(child_pid, NULL, WSTOPPED);
             if (w == -1) fprintf(stderr, "Error waiting for command's child process.\n");
-        }
+        // }
         return;
     }
     

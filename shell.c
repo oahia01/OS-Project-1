@@ -207,7 +207,7 @@ void updateRunningChildPids(Environment *env, sem_t *sem_env_ptr) {
         if (kill(env->child_processes[j], 0) == 0)     /* check if pid is running */
             env->child_processes[numRunning++] = env->child_processes[j];
     }
-    fprintf(stderr, "numRunning: %d\n", numRunning);
+    // fprintf(stderr, "numRunning: %d\n", numRunning);
     env->num_child_processes = numRunning;
     sem_post(sem_env_ptr);
 }
