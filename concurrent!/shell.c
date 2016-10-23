@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <signal.h>
+#include <pthread.h>
 #include "cmds.c"
 
 #define PATH_MAX 4096  /* maximum filepath length in (most) Linux systems */
@@ -27,7 +28,7 @@ static volatile int halt = 0;
 // void sigintHandler(int sig) { printf("what"); }
 int setupEnvironment(Environment *env);
 void cleanupString(char *line);
-void updateRunningChildPids(Environment *env, sem_t *sem_env_ptr);
+// void updateRunningChildPids(Environment *env, sem_t *env_lock);
 
 
 int main(int argc, char *argv[], char** main_envp) {
@@ -42,8 +43,8 @@ int main(int argc, char *argv[], char** main_envp) {
     }
 
     /* set up Environment lock: */
-    sem_t sem_env;
-    if( sem_init(&sem_env, 1, 1) < 0) {
+    sem_t env_lock;
+    if( sem_init(&env_lock, 1, 1) < 0) {
         fprintf(stderr, "Error initializing semaphore for environment struct.\n");
         exit(1);
     }
@@ -73,11 +74,14 @@ int main(int argc, char *argv[], char** main_envp) {
 
     while (!halt) {
 
-        updateRunningChildPids(&env, &sem_env);
+        // updateRunningChildPids(&env, &env_lock);
 
         if (!batchMode){
+            sem_wait(&env_lock);
             printf("%s > ", env.PWD);
+            sem_post(&env_lock);
         }
+        fprintf(stderr, "THREE \n");
         lineLimit = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
         if (batchMode) printf(line);
         
@@ -125,7 +129,7 @@ int main(int argc, char *argv[], char** main_envp) {
                 break;
             }
             
-            runCommand(argv, argc, &env, main_envp, &sem_env);
+            runCommand(argv, argc, &env, main_envp, &env_lock);
             free(argv);
         }
         free(cmds);
@@ -134,13 +138,18 @@ int main(int argc, char *argv[], char** main_envp) {
     free(line);
     if (batchMode) fclose(batchFile);
     
-    /* wait for child processes to close: */
-    updateRunningChildPids(&env, &sem_env);
+    /* wait for all threads to complete: */
+    // updateRunningChildPids(&env, &env_lock);
+    sem_wait(&env_lock);
     int i;
-    for (i = 0; i < env.num_child_processes; i++)
-        waitpid(env.child_processes[i], NULL, WSTOPPED);
+    for (i = 0; i < env.num_threads; i++)
+        if (pthread_join(env.threads[i], NULL))
+            fprintf(stderr, "Error joining thread prior to exiting.\n");
+        // waitpid(env.threads[i], NULL, WSTOPPED);
+    sem_post(&env_lock);
 
-    sem_destroy(&sem_env);
+    sem_destroy(&env_lock);
+    fprintf(stderr, "Finished waiting for threads, now exiting happily!\n");
     exit(0);
     
 }
@@ -165,9 +174,9 @@ int setupEnvironment(Environment *env) {
         
         getcwd(env->PWD, PATH_MAX);
         
-        pid_t cpArr[MAX_CHILD_PROCESSES];
-        env->child_processes = cpArr;
-        env->num_child_processes = 0;
+        pthread_t cpArr[MAX_THREADS];
+        env->threads = cpArr;
+        env->num_threads = 0;
         return 1;
     }
 }
@@ -198,16 +207,16 @@ void cleanupString(char *line) {
 
 
 /* Updates env->runningChildPids, leaving only children that are still running */
-void updateRunningChildPids(Environment *env, sem_t *sem_env_ptr) {
+// void updateRunningChildPids(Environment *env, sem_t *env_lock) {
     
-    sem_wait(sem_env_ptr);
-    int numRunning = 0;
-    int j;
-    for (j = 0; j < env->num_child_processes; j++){
-        if (kill(env->child_processes[j], 0) == 0)     /* check if pid is running */
-            env->child_processes[numRunning++] = env->child_processes[j];
-    }
-    fprintf(stderr, "numRunning: %d\n", numRunning);
-    env->num_child_processes = numRunning;
-    sem_post(sem_env_ptr);
-}
+//     sem_wait(env_lock);
+//     int numRunning = 0;
+//     int j;
+//     for (j = 0; j < env->num_threads; j++){
+//         if (kill(env->threads[j], 0) == 0)     /* check if pid is running */
+//             env->threads[numRunning++] = env->threads[j];
+//     }
+//     fprintf(stderr, "numRunning: %d\n", numRunning);
+//     env->num_threads = numRunning;
+//     sem_post(env_lock);
+// }
