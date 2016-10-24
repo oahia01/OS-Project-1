@@ -1,2 +1,4 @@
-cd .. &; cd .. &; cd .. &; cd .. &; quit &
-cd meh
+cd .. &; cd .. &;;;;;; echo hahahahah
+dir; cd &; ; ;         ; echo meh
+runwahteer; ls; quit; cd Projectlol
+cd meh  
