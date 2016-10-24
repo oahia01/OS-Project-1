@@ -1,4 +1,2 @@
-a a
-two
-three adf asdf; sadf sadf
-sadfsadfsdf
+cd .. &; cd .. &; cd .. &; cd .. &; quit &
+cd meh

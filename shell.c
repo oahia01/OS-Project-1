@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <signal.h>
@@ -24,26 +25,29 @@
 const char *whites = " \t\n";
 static volatile int halt = 0;
 
+static Environment *env;
+
 // void sigintHandler(int sig) { printf("what"); }
 int setupEnvironment(Environment *env);
 void cleanupString(char *line);
-void updateRunningChildPids(Environment *env, sem_t *sem_env_ptr);
+void updateRunningChildPids(sem_t *sem_env_ptr);
 
 
 int main(int argc, char *argv[], char** main_envp) {
 
     // signal(SIGHUP, sigintHandler);
     
+    env = mmap(NULL, sizeof(Environment), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
     /* set up shell Environment: */
-    Environment env;
-    if (!setupEnvironment(&env)) {
+    if (!setupEnvironment(env)) {
         fprintf(stderr, "Cannot get directory of shell executable.\n");
         exit(1);
     }
 
     /* set up Environment lock: */
     sem_t sem_env;
-    if( sem_init(&sem_env, 1, 1) < 0) {
+    if (sem_init(&sem_env, 1, 1) < 0) {
         fprintf(stderr, "Error initializing semaphore for environment struct.\n");
         exit(1);
     }
@@ -72,11 +76,10 @@ int main(int argc, char *argv[], char** main_envp) {
     line = (char *)malloc(buffSize * sizeof(char));    
 
     while (!halt) {
-
-        updateRunningChildPids(&env, &sem_env);
+        // fprintf(stderr, "numRunning: %d\n", env->num_child_processes);
 
         if (!batchMode){
-            printf("%s > ", env.PWD);
+            printf("%s > ", env->PWD);
         }
         lineLimit = getline(&line, &buffSize, (batchMode) ? batchFile : stdin);
         if (batchMode) printf(line);
@@ -125,7 +128,7 @@ int main(int argc, char *argv[], char** main_envp) {
                 break;
             }
             
-            runCommand(argv, argc, &env, main_envp, &sem_env);
+            runCommand(argv, argc, env, main_envp, &sem_env);
             free(argv);
         }
         free(cmds);
@@ -135,12 +138,12 @@ int main(int argc, char *argv[], char** main_envp) {
     if (batchMode) fclose(batchFile);
     
     /* wait for child processes to close: */
-    updateRunningChildPids(&env, &sem_env);
     int i;
-    for (i = 0; i < env.num_child_processes; i++)
-        waitpid(env.child_processes[i], NULL, WSTOPPED);
-
+    for (i = 0; i < env->num_child_processes; i++) {
+        waitpid(env->child_processes[i], NULL, WSTOPPED);
+    }
     sem_destroy(&sem_env);
+    munmap(env, sizeof(Environment));
     exit(0);
     
 }
@@ -155,8 +158,8 @@ int setupEnvironment(Environment *env) {
         return 0;
     else {
         /* copy env->shell and the program environment's SHELL field: */
-        env->shell = malloc(PATH_MAX * sizeof(char*));
-        env->PWD = malloc(PATH_MAX * sizeof(char*));
+        // env->shell = malloc(PATH_MAX * sizeof(char*));
+        // env->PWD = malloc(PATH_MAX * sizeof(char*));
         strcpy(env->shell, envbuf);
         char var[PATH_MAX+6];
         strcpy(var, "SHELL=");
@@ -165,8 +168,8 @@ int setupEnvironment(Environment *env) {
         
         getcwd(env->PWD, PATH_MAX);
         
-        pid_t cpArr[MAX_CHILD_PROCESSES];
-        env->child_processes = cpArr;
+        // pid_t cpArr[MAX_CHILD_PROCESSES];
+        // env->child_processes = cpArr;
         env->num_child_processes = 0;
         return 1;
     }
@@ -194,20 +197,4 @@ void cleanupString(char *line) {
     }
 
     line[lineLen] = 0;  /* null-terminate */
-}
-
-
-/* Updates env->runningChildPids, leaving only children that are still running */
-void updateRunningChildPids(Environment *env, sem_t *sem_env_ptr) {
-    
-    sem_wait(sem_env_ptr);
-    int numRunning = 0;
-    int j;
-    for (j = 0; j < env->num_child_processes; j++){
-        if (kill(env->child_processes[j], 0) == 0)     /* check if pid is running */
-            env->child_processes[numRunning++] = env->child_processes[j];
-    }
-    // fprintf(stderr, "numRunning: %d\n", numRunning);
-    env->num_child_processes = numRunning;
-    sem_post(sem_env_ptr);
 }
