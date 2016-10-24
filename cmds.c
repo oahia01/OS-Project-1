@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <semaphore.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define MAX_CHILD_PROCESSES 4096
 
@@ -30,27 +32,41 @@ void execute(char** argv, Environment *env);
 
 
 extern void runCommand(char **argv, int argc, Environment *env, char** main_envp, sem_t *sem_env_ptr) {
-    
     int backgroundRun = !strcmp(argv[argc-1], "&");
     if (backgroundRun) {  /* remove the extra & */
         argv[argc-1] = NULL;
         argc--;
     }
     
-    int ioRedirect = (argc > 2) && !strcmp(argv[argc-2], ">");
+    int ioRedirect_replaceOutputF = (argc > 2) && !strcmp(argv[argc-2], ">");
+    int ioRedirect_appendOutputF = (argc > 2) && !strcmp(argv[argc-2], ">>");
+    int ioRedirect = ioRedirect_replaceOutputF || ioRedirect_appendOutputF;
     char *redirectDest;
-    if (ioRedirect) {  /* remove the "> ???" */
+    FILE *fileDesc;
+    if (ioRedirect) {  /* remove the ">/>> outputFile */
         redirectDest = argv[argc-1];
         argv[argc-2] = NULL;
         argc -= 2;
+        if (ioRedirect_replaceOutputF){
+            fileDesc = fopen(redirectDest, "w");
+        } else fileDesc = fopen(redirectDest, "a");
+        if (fileDesc < 0){
+            fprintf(stderr, "Error preparing file for I/O edirection. Exiting.\n");
+            exit(1);
+        }
     }
-
-    //TODO: handle IO redirecting!!!!!!!!!!!!!!!!
     
     pid_t child_pid = fork();
     if (child_pid == 0) {
         /* child process: continue running this function */
         !chdir(env->PWD);
+        if (ioRedirect){
+            if (dup2(fileno(fileDesc), STDOUT_FILENO) < 0) {
+                    fprintf(stderr, "Error assigning output file for I/O Redirection. Exiting.\n");
+                    exit(1);
+            }
+            fclose(fileDesc);
+        }
     } else if (child_pid == -1) {
         fprintf(stderr, "Error creating child process to execute command, errno = %d.\n", errno);
     } else {
