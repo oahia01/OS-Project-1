@@ -1,18 +1,79 @@
- Names and Tufts CS account names:
- 	Oghenefego Ahia	-	oahia01
- 	Saurav Acharya 	-	sarch01
-
-Design overview:
-A few paragraphs describing the overall structure of your code and any important structures.
 
 
-Complete specification:
+This program implements a shell with basic functionalities.
+
+
+===============
+==== Files ====
+
+    shell.h
+    shell.c
+    cmds.c
+    help.txt
+    Makefile
+    README
+
+
+=========================
+==== Design Overview ====
+
+
+The code files consist of shell.h, shell.c and cmd.c:
+
+shell.h     Contains constant variables and #define statements. Also contains the Environment struct definition.
+            - The Environment struct contains variables that need to be passed around while running the shell.
+
+shell.c     This file implements functions that run the shell, read commands via the prompt or the batch file, and pre-process the commands.
+
+cmd.c       This file implements functions responsible for running commands for the shell program.
+
+
+Other auxillary files include:
+
+help.txt    This contains the user manual information for this shell program. Its content is displayed using a more filter when the user types 'help'.
+
+Makefile    Used for compiling the program.
+
+README      This contains basic documentation about the code structure and program implementation.
+
+
+Overview of program flow:
+setupEnvironment() -> set up binary semaphore for Environment struct -> while (!halt), run commands
+
+Running commands:
+parse commands depending on whether in interactive or batch file mode -> runCommand() -> spawn child process(es) with shared memory -> parse user command -> determine if I/O redirection is enabled -> perform corresponding action accordingly -> repeat
+
+
+================================
+==== Complete Specification ====
+
 Describe how you handled any ambiguities in the specification. For example, for this project, explain how your shell will handle lines that have no commands between semi-colons.
 
+- The line that prompts the user for input in interactive mode consists of the PWD followed by " > ".
+- When reading from batch file, each line is outputted before it is pre-processed, parsed and executed.
 
-If you attempted the extra-credit and how successful you were in finishing it.
+- How a line from the prompt / batch file is pre-processed and parsed:
+    - After the line is fetched via getline, cleanupString() is run. This function removes leading and trailing white spaces and ;'s. (Ex. "  cd ;" => "cd") If the line is empty, continue to the next line. Next, the line is split into multiple command strings delimited by one or more ;'s.
+    - Then, each command string is also processed through cleanupString(), which gets rid of leading and trailing white spaces in each command. (Ex. "cd ; dir /h/;  ;" => "cd;dir /h/;;") Again, empty command strings are skipped using 'continue'.
+    - For each command string, the command is split into argument strings to get argv and argc for that command (delimited by one or more white spaces). Finally, we execute runCommand using those argv and argc.
+
+- How each command is run:
+    - First, we check if we need to run it in background (i.e. last arg is &). If the last arg isn't &, we run the command in a child process. The child process executes the command, and the parent waits for the child process to close before prompting / executing the next command.
+    - If the last arg is &, we strip the last arg and also run the command in a child process. However, instead of waiting for the child process the parent adds the child PID to env->child_processes and goes back to prompting / executing the next command. Right before the child process exits, it removes its own PID from env->child_processes.
+    - IO redirection is handled so that for commands that end in "> xyz", "> xyz &", ">> xyz", or ">> xyz &", the output is written / appended into file xyz rather than stdout.
+    - At any given point, env->child_processes should contain all child processes that are still running. So before the shell terminates, it waits for child processes in env->child_processes to close.
 
 
-Known bugs or problems: A list of any features that you did not implement or that you know are not working correctly
+================================
+========= Extra Credit =========
+
+The extra-credit specification was successfully implemented such that for lines containing multiple commands separated with the ';' character, each command was run using concurrently-running processes. Also, the shell does not print the next prompt or take more input until all commands have finished executing.
 
 
+================================
+==== Known bugs or problems ====
+
+In order to indicate an EOF in interactive mode, 
+    - If there is leading input and the user enters CTRL+D, the user has to type CTRL+D again in order to exit the shell after all running processes have terminated. Without leading input, typing CTRL+D once works perfectly. The reason is typing CTRL+D flushes the input buffer (updated by the getline() function call) of this leading input. So the user has to retype CTRL+D in order to register an EOF in interactive mode.
+    
+    
