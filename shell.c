@@ -1,14 +1,16 @@
 /*
  * Date created: 10/18/2016
- * By: 
+ * By: Saurav Acharya and Oghenefego Ahia
  * 
+ * This program implements a shell with basic functionalities.
+ * This file implements functions that run the shell, read commands via the prompt or the batch
+ * file, and pre-process the commands.
  * 
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <pthread.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -18,23 +20,15 @@
 #include <signal.h>
 #include "cmds.c"
 
-//TODO: fix case where you have to CTRL+D twice on interactive mode
-
-const char *whites = " \t\n";
+static Environment *env;
 static volatile int halt = 0;
 
-static Environment *env;
-
-// void sigintHandler(int sig) { printf("what"); }
 int setupEnvironment(Environment *env);
 void cleanupString(char *line);
-void updateRunningChildPids(sem_t *sem_env_ptr);
 
 
 int main(int argc, char *argv[], char** main_envp) {
 
-    // signal(SIGHUP, sigintHandler);
-    
     env = mmap(NULL, sizeof(Environment), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
     /* set up shell Environment: */
@@ -53,6 +47,7 @@ int main(int argc, char *argv[], char** main_envp) {
     int batchMode = 0;
     FILE *batchFile;
 
+    /* set up input stream (interactive or batch mode) */
     if (argc == 1) {
         batchMode = 0;
     } else if (argc == 2) {
@@ -73,8 +68,8 @@ int main(int argc, char *argv[], char** main_envp) {
     size_t lineLimit;
     line = (char *)malloc(buffSize * sizeof(char));    
 
+    /* process commands */
     while (!halt) {
-        // fprintf(stderr, "numRunning: %d\n", env->num_child_processes);
 
         if (!batchMode){
             printf("%s > ", env->PWD);
@@ -137,9 +132,9 @@ int main(int argc, char *argv[], char** main_envp) {
     
     /* wait for child processes to close: */
     int i;
-    for (i = 0; i < env->num_child_processes; i++) {
+    for (i = 0; i < env->num_child_processes; i++)
         waitpid(env->child_processes[i], NULL, WSTOPPED);
-    }
+        
     sem_destroy(&sem_env);
     munmap(env, sizeof(Environment));
     exit(0);
@@ -156,8 +151,6 @@ int setupEnvironment(Environment *env) {
         return 0;
     else {
         /* copy env->shell and the program environment's SHELL field: */
-        // env->shell = malloc(PATH_MAX * sizeof(char*));
-        // env->PWD = malloc(PATH_MAX * sizeof(char*));
         strcpy(env->shell, envbuf);
         char var[PATH_MAX+6];
         strcpy(var, "SHELL=");
@@ -166,8 +159,6 @@ int setupEnvironment(Environment *env) {
         
         getcwd(env->PWD, PATH_MAX);
         
-        // pid_t cpArr[MAX_CHILD_PROCESSES];
-        // env->child_processes = cpArr;
         env->num_child_processes = 0;
         return 1;
     }

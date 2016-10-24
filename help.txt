@@ -18,6 +18,7 @@ List all the environment strings.
 echo <comment>
 Display <comment> on the display followed by a new line (multiple white spaces may be reduced to a single space).
 
+
 help
 Display the user manual using the more filter.
 
@@ -28,3 +29,4 @@ Pause operation of the shell until 'Enter' is pressed.
 
 quit
 Quit the shell.
+

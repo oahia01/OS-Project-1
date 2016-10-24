@@ -1,3 +1,11 @@
+/*
+ * Date created: 10/18/2016
+ * By: Saurav Acharya and Oghenefego Ahia
+ * 
+ * This file implements functions responsible for running commands for the shell program.
+ * 
+ */
+
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <stdio.h>
@@ -10,16 +18,7 @@
 #include <semaphore.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-#define MAX_CHILD_PROCESSES 4096
-#define PATH_MAX 4096  /* maximum filepath length in (most) Linux systems */
-
-typedef struct Environment {
-    char shell[PATH_MAX];
-    char PWD[PATH_MAX];
-    pid_t child_processes[MAX_CHILD_PROCESSES];
-    int num_child_processes;
-} Environment;
+#include "shell.h"
 
 void removeSelfPID(Environment *env);
 
@@ -32,6 +31,7 @@ void pauseShell();
 void execute(char** argv, Environment *env);
 
 
+/* Runs a command given the argument strings, environments and the environment lock. */
 extern void runCommand(char **argv, int argc, Environment *env, char** main_envp, sem_t *sem_env_ptr) {
     int backgroundRun = !strcmp(argv[argc-1], "&");
     if (backgroundRun) {  /* remove the extra & */
@@ -42,11 +42,14 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
     int ioRedirect_replaceOutputF = (argc > 2) && !strcmp(argv[argc-2], ">");
     int ioRedirect_appendOutputF = (argc > 2) && !strcmp(argv[argc-2], ">>");
     int ioRedirect = ioRedirect_replaceOutputF || ioRedirect_appendOutputF;
-    char *redirectDest;
-    char *parentDir = getcwd(env->PWD, PATH_MAX);
+    char redirectDest[PATH_MAX + strlen(argv[argc-1]) + 1];
+    char parentDir[PATH_MAX];
+    getcwd(parentDir, PATH_MAX);
     FILE *fileDesc;
     if (ioRedirect) {  /* remove the ">/>> outputFile */
-        redirectDest = argv[argc-1];
+        strcpy(redirectDest, env->PWD);
+        strcat(redirectDest, "/");
+        strcat(redirectDest, argv[argc-1]);
         argv[argc-2] = NULL;
         argc -= 2;
         if (ioRedirect_replaceOutputF){
@@ -61,7 +64,7 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
     pid_t child_pid = fork();
     if (child_pid == 0) {
         /* child process: continue running this function */
-        !chdir(env->PWD);
+        chdir(env->PWD);  /* update current dir to PWD */
         if (ioRedirect){
             if (dup2(fileno(fileDesc), STDOUT_FILENO) < 0) {
                     fprintf(stderr, "Error assigning output file for I/O Redirection. Exiting.\n");
@@ -74,6 +77,7 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
     } else {
         /* parent process: */
         if (backgroundRun) {
+            /* background run (&): don't wait for child, but add it to env->child_processes */
             if (env->num_child_processes == MAX_CHILD_PROCESSES) {
                 fprintf(stderr, "Error: maximum child process limit exceeded. Exiting.\n");
                 exit(1);
@@ -83,6 +87,7 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
             env->child_processes[env->num_child_processes++] = child_pid;
             sem_post(sem_env_ptr);
         } else {
+            /* non-background run (no &): wait for child */
             pid_t w = waitpid(child_pid, NULL, WSTOPPED);
             if (w == -1) fprintf(stderr, "Error waiting for command's child process.\n");
 
@@ -94,13 +99,8 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
         return;
     }
     
-    /* (for debugging) print the args: */
-    // int i;
-    // fprintf(stderr, "arg list: ");
-    // for (i = 0; i < argc; i++)
-    //     fprintf(stderr, "%s - ", argv[i]);
-    // fprintf(stderr, "\n");
 
+    /* run the specific command: */
     char *cmdName = argv[0];
     if (!strcmp(cmdName, "dir")) {
         if      (argc == 1)     dir(env->PWD);
@@ -124,6 +124,7 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
         execute(argv, env);
     }
 
+    /* before closing this child process, remove it from env->child_processes */
     if (backgroundRun) {
         sem_wait(sem_env_ptr);
         removeSelfPID(env);
@@ -205,7 +206,6 @@ void pauseShell() {
     while (getchar() != '\n') {}
 }
 
-//TODO: TEST and make sure the child process actually gets argv and child_env!!!!
 void execute(char** argv, Environment *env) {
     
     char var[PATH_MAX+7];

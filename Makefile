@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-I -Wall -lrt -pthread
-DEPS = cmds.c
+DEPS = cmds.c shell.h
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
