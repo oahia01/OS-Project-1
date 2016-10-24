@@ -18,8 +18,6 @@
 #include <signal.h>
 #include "cmds.c"
 
-#define PATH_MAX 4096  /* maximum filepath length in (most) Linux systems */
-
 //TODO: fix case where you have to CTRL+D twice on interactive mode
 
 const char *whites = " \t\n";

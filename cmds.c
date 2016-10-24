@@ -12,6 +12,7 @@
 #include <fcntl.h>
 
 #define MAX_CHILD_PROCESSES 4096
+#define PATH_MAX 4096  /* maximum filepath length in (most) Linux systems */
 
 typedef struct Environment {
     char shell[PATH_MAX];
@@ -26,7 +27,7 @@ void dir(char *path);
 void cd(char *path, Environment *env, sem_t *sem_env_ptr);
 void environ(char** main_envp);
 void echo(char **argv, int argc);
-void help();
+void help(char *parentDir);
 void pauseShell();
 void execute(char** argv, Environment *env);
 
@@ -42,6 +43,7 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
     int ioRedirect_appendOutputF = (argc > 2) && !strcmp(argv[argc-2], ">>");
     int ioRedirect = ioRedirect_replaceOutputF || ioRedirect_appendOutputF;
     char *redirectDest;
+    char *parentDir = getcwd(env->PWD, PATH_MAX);
     FILE *fileDesc;
     if (ioRedirect) {  /* remove the ">/>> outputFile */
         redirectDest = argv[argc-1];
@@ -115,7 +117,7 @@ extern void runCommand(char **argv, int argc, Environment *env, char** main_envp
     } else if (!strcmp(cmdName, "echo")) {
         echo(argv, argc);
     } else if (!strcmp(cmdName, "help")) {
-        help();
+        help(parentDir);
     } else if (!strcmp(cmdName, "pause")) {
         pauseShell();
     } else {
@@ -191,18 +193,11 @@ void echo(char **argv, int argc) {
     printf("\n");
 }
 
-//TODO: what does she mean by "more filter"?!?!?
-void help() {
-    char *helpStr = "\ncd <directory>\nChange the current default directory to <directory>. If the <directory> argument is not present, reports the current directory.\n\n" 
-                      "clr\nClear the screen.\n\n"
-                      "dir <directory>\nList the contents of directory <directory>.\n\n"
-                      "environ\nList all the environment strings.\n\n"
-                      "echo <comment>\nDisplay <comment> on the display followed by a new line (multiple white spaces may be reduced to a single space).\n"
-                      "help\nDisplay the user manual using the more filter.\n\n"
-                      "pause\nPause operation of the shell until 'Enter' is pressed.\n\n"
-                      "quit\nQuit the shell.\n";
-    // system(helpStr);
-    printf("%s\n", helpStr);
+void help(char *parentDir) {
+    char helpStr[PATH_MAX + 14] = "more ";
+    strcat(helpStr, parentDir);
+    strcat(helpStr, "/help.txt");
+    system(helpStr);
 }
 
 void pauseShell() {
