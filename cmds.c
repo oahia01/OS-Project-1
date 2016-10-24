@@ -175,6 +175,7 @@ void echo(char **argv, int argc) {
     printf("\n");
 }
 
+//TODO: what does she mean by "more filter"?!?!?
 void help() {
     char *helpStr = "\ncd <directory>\nChange the current default directory to <directory>. If the <directory> argument is not present, reports the current directory.\n\n" 
                       "clr\nClear the screen.\n\n"
@@ -205,7 +206,7 @@ void execute(char** argv, Environment *env) {
     if (ret == -1) {
         fprintf(stderr, "Error invoking program: ");
         if (errno == 2)
-            fprintf(stderr, "make sure program path is valid.\n");
+            fprintf(stderr, "make sure program name and filepath are valid.\n");
         else
             fprintf(stderr, "errno = %d.\n", errno);
         exit(1);
